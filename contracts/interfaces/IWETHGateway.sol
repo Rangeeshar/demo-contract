@@ -11,7 +11,7 @@ interface IWETHGateway {
     uint256 amount,
     address nftAsset,
     uint256 nftTokenId,
-    address onBehalfOf,
+    address onBehalfOf
   ) external;
 
 }
