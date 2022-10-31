@@ -12,7 +12,6 @@ interface IWETHGateway {
     address nftAsset,
     uint256 nftTokenId,
     address onBehalfOf,
-    uint16 referralCode
   ) external;
 
 }

@@ -41,8 +41,7 @@ contract WETHGateway is IWETHGateway {
         uint256 amount,
         address nftAsset,
         uint256 nftTokenId,
-        address onBehalfOf,
-        uint16 referralCode
+        address onBehalfOf
     ) external{
 
     }
