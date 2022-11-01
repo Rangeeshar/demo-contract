@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.17;
 
+import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
+
 import {IWETH} from "../interfaces/IWETH.sol";
 import {IWETHGateway} from "../interfaces/IWETHGateway.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
@@ -44,7 +46,15 @@ contract WETHGateway is IWETHGateway {
         uint256 nftTokenId,
         address onBehalfOf
     ) external{
+        
+        uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
+        if(loanId == 0){
+            IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
+        }
 
+        LendPool.borrow(address(WETH), amount, nftAsset, nftTokenId, onBehalfOf);
+        WETH.withdraw(amount);
+        _safeTransferETH(onBehalfOf, amount);
     }
 
 

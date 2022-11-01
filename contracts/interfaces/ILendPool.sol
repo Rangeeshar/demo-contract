@@ -22,9 +22,10 @@ interface ILendPool {
         uint256 amount,
         address nftAsset,
         uint256 nftTokenId,
-        address onBehalfOf,
-        uint16 referralCode
+        address onBehalfOf
     ) external;
 
     function getDepositBalance(address addr) external returns(uint256);
+
+    function getCollateralLoanId(address nftAsset, uint256 nftTokenId) external view returns(uint256);
 }
