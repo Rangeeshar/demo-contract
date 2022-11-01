@@ -57,6 +57,29 @@ contract WETHGateway is IWETHGateway {
         _safeTransferETH(onBehalfOf, amount);
     }
 
+    function repayETH(
+        address nftAsset,
+        uint256 nftTokenId,
+        uint256 amount
+    ) external payable returns (uint256, bool){
+        (uint256 repayAmount, bool repayAll) = _repayETH(nftAsset, nftTokenId, amount, 0);
+
+        // refund remaining dust eth
+        if (msg.value > repayAmount) {
+        _safeTransferETH(msg.sender, msg.value - repayAmount);
+        }
+
+        return (repayAmount, repayAll);
+    }
+
+    function _repayETH(
+        address nftAsset,
+        uint256 nftTokenId,
+        uint256 amount,
+        uint256 accAmount
+    ) internal returns (uint256, bool) {
+        
+    }
 
     /**
     * @dev transfer ETH to an address, revert if it fails.
@@ -67,4 +90,5 @@ contract WETHGateway is IWETHGateway {
         (bool success, ) = to.call{value: value}(new bytes(0));
         require(success, "ETH_TRANSFER_FAILED");
     }
+    
 }
