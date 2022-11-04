@@ -62,7 +62,7 @@ contract WETHGateway is IWETHGateway {
         uint256 nftTokenId,
         uint256 amount
     ) external payable returns (uint256, bool){
-        (uint256 repayAmount, bool repayAll) = _repayETH(nftAsset, nftTokenId, amount, 0);
+        (uint256 repayAmount, bool repayAll) = _repayETH(nftAsset, nftTokenId, amount);
 
         // refund remaining dust eth
         if (msg.value > repayAmount) {
@@ -75,10 +75,26 @@ contract WETHGateway is IWETHGateway {
     function _repayETH(
         address nftAsset,
         uint256 nftTokenId,
-        uint256 amount,
-        uint256 accAmount
+        uint256 amount
     ) internal returns (uint256, bool) {
-        
+
+        uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
+        require(loanId > 0, "collateral loan id not exist");
+
+        address reserveAsset = address(WETH);
+        uint256 repayDebtAmount = LendPool.getDebtAmount(loanId);
+
+        if(amount < repayDebtAmount){
+            repayDebtAmount = amount;
+        }
+
+        require(msg.value >= repayDebtAmount,"msg.value is less than repay amount");
+
+        WETH.deposit{value: repayDebtAmount}();
+        // burn: burnt amount of the loan
+        (uint256 paybackAmount, bool burn) = LendPool.repay(nftAsset, nftTokenId, amount);
+
+        return (paybackAmount, burn);
     }
 
     /**

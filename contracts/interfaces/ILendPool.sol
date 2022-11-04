@@ -43,5 +43,7 @@ interface ILendPool {
 
     function getDepositBalance(address addr) external returns(uint256);
 
+    function getDebtAmount(uint256 loanId) external returns(uint256);
+
     function getCollateralLoanId(address nftAsset, uint256 nftTokenId) external view returns(uint256);
 }

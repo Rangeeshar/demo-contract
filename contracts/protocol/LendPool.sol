@@ -8,7 +8,9 @@ contract LendPool  {
 
     mapping(address => uint256) public depositList;
     mapping(address => uint256) public borrowList;
+    // nftAsset + nftTokenId => loanId
     mapping(address => mapping(uint256 => uint256)) private nftToLoanIds;
+    mapping(uint256 => LoanData) loanData;
 
     enum LoanState {
         Created,
@@ -28,6 +30,10 @@ contract LendPool  {
 
     function getDepositBalance(address addr) public view returns(uint256){
         return depositList[addr];
+    }
+
+    function getDebtAmount(uint256 loanId) public view returns(uint256){
+        return loanData[loanId].borrowedAmount;
     }
 
     function getCollateralLoanId(address nftAsset, uint256 nftTokenId) public view returns(uint256){
