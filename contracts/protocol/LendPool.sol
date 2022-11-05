@@ -6,8 +6,8 @@ import {ILendPool} from "../interfaces/ILendPool.sol";
 
 contract LendPool is ILendPool{
 
-    mapping(address => uint256) public depositList;
-    mapping(address => uint256) public borrowList;
+    mapping(address => uint256) public scaledDepositList;
+    mapping(address => uint256) public scaledBorrowList;
     // nftAsset + nftTokenId => loanId
     mapping(address => mapping(uint256 => uint256)) private nftToLoanIds;
     mapping(uint256 => LoanData) loanData;
@@ -23,8 +23,8 @@ contract LendPool is ILendPool{
     struct ReserveData {
         uint128 liquidityIndex;
         uint128 borrowIndex;
-        uint256 liquidityAmount;
-        uint256 borrowedAmount;
+        uint256 scaledLiquidityAmount;
+        uint256 scaledBorrowedAmount;
         uint128 currentLiquidityRate;
         uint128 currentBorrowRate;
         uint256 lastUpdateTimestamp;
@@ -50,7 +50,6 @@ contract LendPool is ILendPool{
     }
 
 
-
     /* 
         @dev deposit underlying asset into the reserve
      */
@@ -59,17 +58,45 @@ contract LendPool is ILendPool{
         uint256 amount,
         address onBehalfOf
     ) external  override {
+
+        updateState(reserveData);
+    }
+
+    /* 
+        @dev Update reserve state: liquidity index and borrow index
+     */
+    function updateState(ReserveData storage reserve) internal {
+
+        //update liquidity index
+        uint128 currentLiquidityRate = reserve.currentLiquidityRate;
+        uint128 newLiquidityIndex = reserve.liquidityIndex;
+        uint128 cumulatedLiquidityInterestRate = calculateLinearInterest(currentLiquidityRate, reserve.lastUpdateTimestamp);
         
-        //TODO: update Reserve Data;
+        newLiquidityIndex =  reserve.currentLiquidityRate * (cumulatedLiquidityInterestRate + 1);
+        reserve.currentLiquidityRate = newLiquidityIndex;
 
+        //update liquidity index
+        uint128 currentBorrowRate = reserve.currentBorrowRate;
+        uint128 newBorrowIndex = reserve.borrowIndex;
+        uint128 cumulatedVariableBorrowInterest = calculateLinearInterest(currentBorrowRate, reserve.lastUpdateTimestamp);
+        newBorrowIndex = reserve.currentLiquidityRate * (cumulatedVariableBorrowInterest + 1);
+        reserve.borrowIndex = newBorrowIndex;
+    }
 
-        //TODO: update interest rates
+    // return accrued interest ratio
+    function calculateLinearInterest(
+        uint128 rate, 
+        uint256 lastUpdateTimestamp) 
+        internal returns(uint128) 
+    {
+
+        //TODO: calculate accrued ratio
     }
 
 
 
     function getDepositBalance(address addr) public view returns(uint256){
-        return depositList[addr];
+        return scaledDepositList[addr];
     }
 
     function getDebtAmount(uint256 loanId) public view returns(uint256){
