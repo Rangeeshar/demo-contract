@@ -48,12 +48,11 @@ contract LendPool is ILendPool{
         reserveData.borrowIndex = 100000000;
         reserveData.currentBorrowRate = borrowRate;
         reserveData.lastUpdateTimestamp = block.timestamp;
-        
     }
 
 
-    /* 
-        @dev deposit underlying asset into the reserve
+    /**
+     * @dev deposit underlying asset into the reserve
      */
     function deposit(
         address asset,
@@ -66,10 +65,49 @@ contract LendPool is ILendPool{
         IERC20Upgradeable(asset).transferFrom(msg.sender,address(this),amount);
         //update balances
         scaledDepositList[onBehalfOf]= amount * reserveData.liquidityIndex;
+
     }
 
-    /* 
-        @dev Update reserve state: liquidity index and borrow index
+    function withdraw(
+        address reserve,
+        uint256 amount,
+        address to
+    ) public returns (uint256){
+        //TODO
+    }
+
+    function borrow(
+        address reserveAsset,
+        uint256 amount,
+        address nftAsset,
+        uint256 nftTokenId,
+        address onBehalfOf
+    ) public{
+        //TODO
+    }
+
+    function repay(
+        address nftAsset,
+        uint256 nftTokenId,
+        uint256 amount
+    ) public returns (uint256, bool){
+        //TODO
+    }
+
+    
+    function createLoan(
+        address initiator,
+        address onBehalfOf,
+        address nftAsset,
+        uint256 nftTokenId,
+        address reserveAsset,
+        uint256 amount
+    ) public returns (uint256){
+        //TODO
+    }
+
+    /** 
+     * @dev Update reserve state: liquidity index and borrow index
      */
     function updateState(ReserveData storage reserve) internal {
 
