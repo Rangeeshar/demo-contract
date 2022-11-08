@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.17;
 
-
+import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
 
 contract LendPool is ILendPool{
@@ -56,12 +56,16 @@ contract LendPool is ILendPool{
         @dev deposit underlying asset into the reserve
      */
     function deposit(
-        address reserve,
+        address asset,
         uint256 amount,
         address onBehalfOf
     ) external  override {
 
         updateState(reserveData);
+        //transfer WETH
+        IERC20Upgradeable(asset).transferFrom(msg.sender,address(this),amount);
+        //update balances
+        scaledDepositList[onBehalfOf]= amount * reserveData.liquidityIndex;
     }
 
     /* 
@@ -93,8 +97,6 @@ contract LendPool is ILendPool{
         uint256 lastUpdateTimestamp) 
         internal returns(uint256) 
     {
-
-        //TODO: calculate accrued ratio
         uint256 timeDifference = block.timestamp - (uint256(lastUpdateTimestamp));
 
         return ((rate * (timeDifference)) / SECONDS_PER_YEAR);
