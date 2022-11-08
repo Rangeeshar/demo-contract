@@ -12,8 +12,9 @@ interface ILendPool {
     ) external;
 
     function withdraw(
-        address reserve,
+        address asset,
         uint256 amount,
+        address initiator,
         address to
     ) external returns (uint256);
 

@@ -64,16 +64,26 @@ contract LendPool is ILendPool{
         //transfer WETH
         IERC20Upgradeable(asset).transferFrom(msg.sender,address(this),amount);
         //update balances
-        scaledDepositList[onBehalfOf]= amount * reserveData.liquidityIndex;
-
+        scaledDepositList[onBehalfOf] += amount * reserveData.liquidityIndex;
     }
 
     function withdraw(
-        address reserve,
+        address asset,
         uint256 amount,
+        address initiator,
         address to
     ) public returns (uint256){
         //TODO
+        uint256 liquidityIndex = reserveData.liquidityIndex;
+        require(amount != 0, "Amount must be greater than 0");
+        require(amount <= scaledDepositList[msg.sender] * liquidityIndex, "Balance not enough");
+
+        updateState(reserveData);
+        //transfer WETH to WETHGateway
+        IERC20Upgradeable(asset).transferFrom(address(this),initiator, amount);
+        //update balances
+        scaledDepositList[to] -=  amount / liquidityIndex;
+        return amount;
     }
 
     function borrow(
@@ -133,7 +143,7 @@ contract LendPool is ILendPool{
     function calculateLinearInterest(
         uint256 rate, 
         uint256 lastUpdateTimestamp) 
-        internal returns(uint256) 
+        internal view returns(uint256) 
     {
         uint256 timeDifference = block.timestamp - (uint256(lastUpdateTimestamp));
 

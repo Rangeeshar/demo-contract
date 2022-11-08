@@ -34,7 +34,7 @@ contract WETHGateway is IWETHGateway {
             amountToWithdraw  = userBalance;
         }
 
-        LendPool.withdraw(address(WETH), amountToWithdraw, address(this)); 
+        LendPool.withdraw(address(WETH), amountToWithdraw, address(this),to); 
         WETH.withdraw((amountToWithdraw));
         _safeTransferETH(to,amountToWithdraw);
     }
