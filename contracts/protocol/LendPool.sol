@@ -42,6 +42,13 @@ contract LendPool is ILendPool{
         uint256 borrowedAmount;
     }
 
+    struct nftData {
+        address nftAddress;
+        uint8 id;
+        uint256 maxSupply;
+        uint256 maxTokenId;
+    }
+
     constructor(uint256 borrowRate ) {
         // reserveData = ReserveData();
         reserveData.liquidityIndex = 100000000;
@@ -73,7 +80,7 @@ contract LendPool is ILendPool{
         address initiator,
         address to
     ) public returns (uint256){
-        //TODO
+        
         uint256 liquidityIndex = reserveData.liquidityIndex;
         require(amount != 0, "Amount must be greater than 0");
         require(amount <= scaledDepositList[msg.sender] * liquidityIndex, "Balance not enough");
@@ -94,6 +101,7 @@ contract LendPool is ILendPool{
         address onBehalfOf
     ) public{
         //TODO
+
     }
 
     function repay(
