@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.17;
 
+import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
+import {IMockOracle} from "../interfaces/IMockOracle.sol";
 
 contract LendPool is ILendPool{
 
@@ -10,11 +12,21 @@ contract LendPool is ILendPool{
 
     mapping(address => uint256) public scaledDepositList;
     mapping(address => uint256) public scaledBorrowList;
+    
     // nftAsset + nftTokenId => loanId
     mapping(address => mapping(uint256 => uint256)) private nftToLoanIds;
-    mapping(uint256 => LoanData) loanData;
+    mapping(address => NFTData) public nftDataList;
+    mapping(uint256 => LoanData) loanDataList;
+    uint256 loanNonce;
+    uint8 collateralRate;
+    address oracleAddr;
+
 
     ReserveData public reserveData;
+
+    // struct Configuration {
+        
+    // }
 
     enum LoanState {
         Created,
@@ -42,19 +54,22 @@ contract LendPool is ILendPool{
         uint256 borrowedAmount;
     }
 
-    struct nftData {
+    struct NFTData {
         address nftAddress;
         uint8 id;
         uint256 maxSupply;
         uint256 maxTokenId;
     }
 
-    constructor(uint256 borrowRate ) {
+    constructor(uint256 borrowRate, address _oracleAddr ) {
         // reserveData = ReserveData();
         reserveData.liquidityIndex = 100000000;
         reserveData.borrowIndex = 100000000;
         reserveData.currentBorrowRate = borrowRate;
         reserveData.lastUpdateTimestamp = block.timestamp;
+        //10000 = 0.01%
+        collateralRate = 5000;
+        oracleAddr = _oracleAddr;
     }
 
 
@@ -101,7 +116,17 @@ contract LendPool is ILendPool{
         address onBehalfOf
     ) public{
         //TODO
+        require(onBehalfOf != address(0), "Invalid OnBehalfof");
+        NFTData storage nftData = nftDataList[nftAsset];
+        updateState(reserveData);
 
+        //convert asset amount to ETH
+        uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice;
+        //validate
+        require(amount <= nftPrice * collateralRate / 10000 ,"");
+        //transfer NFT
+        IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
+        createLoan( onBehalfOf, nftAsset, nftTokenId, reserveAsset, amount);
     }
 
     function repay(
@@ -111,10 +136,7 @@ contract LendPool is ILendPool{
     ) public returns (uint256, bool){
         //TODO
     }
-
-    
     function createLoan(
-        address initiator,
         address onBehalfOf,
         address nftAsset,
         uint256 nftTokenId,
@@ -122,6 +144,12 @@ contract LendPool is ILendPool{
         uint256 amount
     ) public returns (uint256){
         //TODO
+        uint256 scaledBorrowAmount = amount / reserveData.borrowIndex;
+        LoanData ld = LoanData(loanNonce,LoanState.Active, onBehalfOf,nftAsset,nftTokenId,reserveAsset,scaledBorrowAmount);
+        nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
+        loanDataList[loanNonce] = ld;
+        loanNonce++;
+        
     }
 
     /** 
@@ -171,4 +199,19 @@ contract LendPool is ILendPool{
     function getCollateralLoanId(address nftAsset, uint256 nftTokenId) public view returns(uint256){
         return nftToLoanIds[nftAsset] [nftTokenId];
     }
+
+
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes calldata data
+  ) external pure override returns (bytes4) {
+    operator;
+    from;
+    tokenId;
+    data;
+    return IERC721ReceiverUpgradeable.onERC721Received.selector;
+  }
+
 }

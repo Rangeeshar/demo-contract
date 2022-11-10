@@ -51,7 +51,7 @@ contract WETHGateway is IWETHGateway {
             IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
         }
 
-        LendPool.borrow(address(WETH), amount, nftAsset, nftTokenId, onBehalfOf);
+        LendPool.borrow(address(WETH), amount, msg.sender, nftAsset, nftTokenId, onBehalfOf);
         WETH.withdraw(amount);
         _safeTransferETH(onBehalfOf, amount);
     }
