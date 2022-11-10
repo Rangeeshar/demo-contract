@@ -33,7 +33,6 @@ interface ILendPool {
     ) external returns (uint256, bool);
 
     function createLoan(
-        address initiator,
         address onBehalfOf,
         address nftAsset,
         uint256 nftTokenId,

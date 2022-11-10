@@ -3,6 +3,7 @@ pragma solidity 0.8.17;
 
 import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import {IERC721ReceiverUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
 import {IMockOracle} from "../interfaces/IMockOracle.sol";
 
@@ -18,15 +19,11 @@ contract LendPool is ILendPool{
     mapping(address => NFTData) public nftDataList;
     mapping(uint256 => LoanData) loanDataList;
     uint256 loanNonce;
-    uint8 collateralRate;
+    uint32 collateralRate;
     address oracleAddr;
 
 
     ReserveData public reserveData;
-
-    // struct Configuration {
-        
-    // }
 
     enum LoanState {
         Created,
@@ -49,7 +46,7 @@ contract LendPool is ILendPool{
         LoanState state;
         address borrower;
         address nftAsset;
-        address nftTokenId;
+        uint256 nftTokenId;
         address reserveAsset;
         uint256 borrowedAmount;
     }
@@ -121,7 +118,7 @@ contract LendPool is ILendPool{
         updateState(reserveData);
 
         //convert asset amount to ETH
-        uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice;
+        uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice(nftAsset,nftTokenId);
         //validate
         require(amount <= nftPrice * collateralRate / 10000 ,"");
         //transfer NFT
@@ -136,6 +133,7 @@ contract LendPool is ILendPool{
     ) public returns (uint256, bool){
         //TODO
     }
+
     function createLoan(
         address onBehalfOf,
         address nftAsset,
@@ -145,11 +143,10 @@ contract LendPool is ILendPool{
     ) public returns (uint256){
         //TODO
         uint256 scaledBorrowAmount = amount / reserveData.borrowIndex;
-        LoanData ld = LoanData(loanNonce,LoanState.Active, onBehalfOf,nftAsset,nftTokenId,reserveAsset,scaledBorrowAmount);
+        LoanData memory ld = LoanData(loanNonce,LoanState.Active,onBehalfOf,nftAsset,nftTokenId, reserveAsset, scaledBorrowAmount);
         nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
         loanDataList[loanNonce] = ld;
         loanNonce++;
-        
     }
 
     /** 
@@ -193,7 +190,7 @@ contract LendPool is ILendPool{
     }
 
     function getDebtAmount(uint256 loanId) public view returns(uint256){
-        return loanData[loanId].borrowedAmount;
+        return loanDataList[loanId].borrowedAmount;
     }
 
     function getCollateralLoanId(address nftAsset, uint256 nftTokenId) public view returns(uint256){
@@ -206,12 +203,12 @@ contract LendPool is ILendPool{
         address from,
         uint256 tokenId,
         bytes calldata data
-  ) external pure override returns (bytes4) {
-    operator;
-    from;
-    tokenId;
-    data;
-    return IERC721ReceiverUpgradeable.onERC721Received.selector;
-  }
+    ) external pure returns (bytes4) {
+        operator;
+        from;
+        tokenId;
+        data;
+        return IERC721ReceiverUpgradeable.onERC721Received.selector;
+    }
 
 }
