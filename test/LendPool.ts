@@ -9,22 +9,51 @@ import { ContractFunction } from "hardhat/internal/hardhat-network/stack-traces/
 describe("Lend Pool", function () {
   console.log("------start test -------");
   const oneEther = ethers.BigNumber.from("1000000000000000000");
-  let mockOracle:any;
+  var mockOracle: any;
+  var weth: any;
   
   this.beforeEach(async () => {
 
     const MockOracle = await ethers.getContractFactory("MockOracle");
     mockOracle = await MockOracle.deploy();
+
+
+    const WETH = await ethers.getContractFactory("WETHMocked");
+    weth = await WETH.deploy();
   });
 
   describe("Mock Oracle",() => {
     it("Get NFT price", async function() {
-      const [owner, addr1, addr2] = await ethers.getSigners();
       await mockOracle.deployed();
       
       const priceOfNFT = await mockOracle.getNFTPrice('0x846684d5db5A149bAb306FeeE123a268a9E8A7E4','0x846684d5db5A149bAb306FeeE123a268a9E8A7E4');
 
       expect(priceOfNFT).to.equal(oneEther);
+    })
+  })
+
+  describe("WETH",() => {
+    it("Mint WETH", async function() {
+      const [owner, addr1, addr2] = await ethers.getSigners();
+      await weth.deployed();
+      
+      //deposit Ether to WETH
+      await weth.deposit({value: ethers.utils.parseUnits("1","ether")});
+      const wethBalance = await weth.balanceOf(owner.address);
+
+      expect(wethBalance).to.equal(oneEther);
+    })
+
+    it("Withdraw ETH", async function() {
+      const [owner, addr1, addr2] = await ethers.getSigners();
+      await weth.deployed();
+      
+      //deposit and withdraw Ether to WETH
+      await weth.deposit({value: ethers.utils.parseUnits("1","ether")});
+      await weth.withdraw(ethers.utils.parseUnits("1","ether"));
+      const wethBalance = await weth.balanceOf(owner.address);
+      console.log(wethBalance);
+      expect(wethBalance).to.equal(0);
     })
   })
 
