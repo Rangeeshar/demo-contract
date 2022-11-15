@@ -6,20 +6,25 @@ import { ContractFunction } from "hardhat/internal/hardhat-network/stack-traces/
 
 
 
-describe("Lend Pool", function () {
+describe("Lend Protocol", function () {
   console.log("------start test -------");
   const oneEther = ethers.BigNumber.from("1000000000000000000");
   var mockOracle: any;
   var weth: any;
+  var mockNFT: any;
   
   this.beforeEach(async () => {
 
     const MockOracle = await ethers.getContractFactory("MockOracle");
     mockOracle = await MockOracle.deploy();
 
-
     const WETH = await ethers.getContractFactory("WETHMocked");
     weth = await WETH.deploy();
+
+    const MockNFT = await ethers.getContractFactory("MockNFT");
+    mockNFT = await MockNFT.deploy();
+
+
   });
 
   describe("Mock Oracle",() => {
@@ -57,7 +62,27 @@ describe("Lend Pool", function () {
     })
   })
 
+  describe("Mock NFT",() => {
+    it("Mint NFT", async function() {
+      const [owner, addr1, addr2] = await ethers.getSigners();
+      await mockNFT.deployed();
+      
+      //mint nft
+      await mockNFT.mint(owner.address);
+      const nftBalance = await mockNFT.balanceOf(owner.address);
+      expect(nftBalance).to.equal(1);
+    })
+  })
 
+  // describe("Lend Pool",() => {
+  //   it("Get NFT price", async function() {
+  //     await mockOracle.deployed();
+      
+  //     const priceOfNFT = await mockOracle.getNFTPrice('0x846684d5db5A149bAb306FeeE123a268a9E8A7E4','0x846684d5db5A149bAb306FeeE123a268a9E8A7E4');
+
+  //     expect(priceOfNFT).to.equal(oneEther);
+  //   })
+  // })
 
 
 
