@@ -6,7 +6,7 @@ import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20
 import {IERC721ReceiverUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
 import {IMockOracle} from "../interfaces/IMockOracle.sol";
-
+import {IWETH} from "../interfaces/IWETH.sol";
 contract LendPool is ILendPool{
 
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
@@ -24,6 +24,8 @@ contract LendPool is ILendPool{
 
 
     ReserveData public reserveData;
+
+    IWETH internal WETH;
 
     enum LoanState {
         Created,
@@ -64,7 +66,7 @@ contract LendPool is ILendPool{
         reserveData.borrowIndex = 100000000;
         reserveData.currentBorrowRate = borrowRate;
         reserveData.lastUpdateTimestamp = block.timestamp;
-        //10000 = 0.01%
+        //1 = 0.01%
         collateralRate = 5000;
         oracleAddr = _oracleAddr;
     }
@@ -83,7 +85,7 @@ contract LendPool is ILendPool{
         //transfer WETH
         IERC20Upgradeable(asset).transferFrom(msg.sender,address(this),amount);
         //update balances
-        scaledDepositList[onBehalfOf] += amount * reserveData.liquidityIndex;
+        scaledDepositList[onBehalfOf] += amount * reserveData.liquidityIndex / 100000000;
     }
 
     function withdraw(
@@ -112,7 +114,7 @@ contract LendPool is ILendPool{
         uint256 nftTokenId,
         address onBehalfOf
     ) public{
-        //TODO
+        
         require(onBehalfOf != address(0), "Invalid OnBehalfof");
         NFTData storage nftData = nftDataList[nftAsset];
         updateState(reserveData);
@@ -141,7 +143,7 @@ contract LendPool is ILendPool{
         address reserveAsset,
         uint256 amount
     ) public returns (uint256){
-        //TODO
+   
         uint256 scaledBorrowAmount = amount / reserveData.borrowIndex;
         LoanData memory ld = LoanData(loanNonce,LoanState.Active,onBehalfOf,nftAsset,nftTokenId, reserveAsset, scaledBorrowAmount);
         nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
@@ -209,6 +211,11 @@ contract LendPool is ILendPool{
         tokenId;
         data;
         return IERC721ReceiverUpgradeable.onERC721Received.selector;
+    }
+
+    function approveWETHGateway(address wethAddr, address wethGatewayAddr) public returns(bool){
+        WETH = IWETH(wethAddr);
+        WETH.approve(wethGatewayAddr, type(uint256).max);
     }
 
 }

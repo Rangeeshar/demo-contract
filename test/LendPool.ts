@@ -13,11 +13,12 @@ describe("Lend Protocol", function () {
   var weth: any;
   var mockNFT: any;
   
+  
   this.beforeEach(async () => {
 
     const MockOracle = await ethers.getContractFactory("MockOracle");
     mockOracle = await MockOracle.deploy();
-
+    console.log("oracle address= " + mockOracle.address);
     const WETH = await ethers.getContractFactory("WETHMocked");
     weth = await WETH.deploy();
 
@@ -74,15 +75,39 @@ describe("Lend Protocol", function () {
     })
   })
 
-  // describe("Lend Pool",() => {
-  //   it("Get NFT price", async function() {
-  //     await mockOracle.deployed();
-      
-  //     const priceOfNFT = await mockOracle.getNFTPrice('0x846684d5db5A149bAb306FeeE123a268a9E8A7E4','0x846684d5db5A149bAb306FeeE123a268a9E8A7E4');
+  describe("Lend Pool", async () => {
+ 
 
-  //     expect(priceOfNFT).to.equal(oneEther);
-  //   })
-  // })
+    it("Deposit 1 Ether from WETHGateway to Lend Pool", async function() {
+      const [owner, addr1, addr2] = await ethers.getSigners();
+      var lendPool: any;
+      var wethGateway: any;
+      
+      const LendPool = await ethers.getContractFactory("LendPool");
+      const WETHGateway = await ethers.getContractFactory("WETHGateway");
+      
+      /**
+       * @param {uint256} Borrow rate: set borrow rate to 10%: 1 = 0.01%
+       * @param {address} Oracle addree 
+       **/
+      lendPool = await LendPool.deploy(1000, mockOracle.address);
+      wethGateway = await WETHGateway.deploy(weth.address, lendPool.address);
+      await mockOracle.deployed();
+      await wethGateway.deployed();
+      await lendPool.deployed();
+
+      await lendPool.approveWETHGateway(weth.address, wethGateway.address);
+      await wethGateway.depositETH(owner.address,{value: ethers.utils.parseUnits("1","ether")});
+
+      // check WETH balance of lend pool
+      const balanceOfPool = await weth.balanceOf(lendPool.address);
+      expect(balanceOfPool).to.equal(oneEther);
+
+      //check balance of depositor
+      const balanceOfDep = await lendPool.getDepositBalance(owner.address);
+      expect(balanceOfDep).to.equal(oneEther);
+    })
+  })
 
 
 

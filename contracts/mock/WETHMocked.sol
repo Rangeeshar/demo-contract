@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.17;
 
-contract WETHMocked {
+import {IWETH} from "../interfaces/IWETH.sol";
+
+contract WETHMocked is IWETH{
   string public name = "Wrapped Ether";
   string public symbol = "WETH";
   uint8 public decimals = 18;

@@ -21,7 +21,7 @@ contract WETHGateway is IWETHGateway {
 
     function depositETH(address onBehalfOf) external payable override {
         
-        WETH.deposit{value: msg.value};
+        WETH.deposit{value: msg.value}();
         LendPool.deposit(address(WETH), msg.value, onBehalfOf);
     }
 
