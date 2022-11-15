@@ -2,21 +2,23 @@
 pragma solidity 0.8.17;
 
 import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
-
+import {ERC721HolderUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
 import {IWETHGateway} from "../interfaces/IWETHGateway.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
 
-contract WETHGateway is IWETHGateway {
+contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
 
     IWETH internal WETH;
     ILendPool internal LendPool;
 
-    constructor(address weth, address lendPool) {
+    constructor(address weth, address lendPool, address nftAsset) {
         
         WETH = IWETH(weth);
         LendPool = ILendPool(lendPool);
         WETH.approve(lendPool, type(uint256).max);
+        IERC721Upgradeable(nftAsset).setApprovalForAll(lendPool,true);
+
     }
 
     function depositETH(address onBehalfOf) external payable override {
@@ -104,6 +106,10 @@ contract WETHGateway is IWETHGateway {
     function _safeTransferETH(address to, uint256 value) internal {
         (bool success, ) = to.call{value: value}(new bytes(0));
         require(success, "ETH_TRANSFER_FAILED");
+    }
+
+    receive() external payable {
+        require(msg.sender == address(WETH), "Receive not allowed");
     }
     
 }

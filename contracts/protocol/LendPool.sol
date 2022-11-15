@@ -97,13 +97,13 @@ contract LendPool is ILendPool{
         
         uint256 liquidityIndex = reserveData.liquidityIndex;
         require(amount != 0, "Amount must be greater than 0");
-        require(amount <= scaledDepositList[msg.sender] * liquidityIndex, "Balance not enough");
+        require(amount <= scaledDepositList[to] * liquidityIndex / 100000000, "Balance not enough");
 
         updateState(reserveData);
         //transfer WETH to WETHGateway
         IERC20Upgradeable(asset).transferFrom(address(this),initiator, amount);
         //update balances
-        scaledDepositList[to] -=  amount / liquidityIndex;
+        scaledDepositList[to] -=  amount * 100000000 / liquidityIndex;
         return amount;
     }
 
@@ -122,7 +122,7 @@ contract LendPool is ILendPool{
         //convert asset amount to ETH
         uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice(nftAsset,nftTokenId);
         //validate
-        require(amount <= nftPrice * collateralRate / 10000 ,"");
+        require(amount <= nftPrice * collateralRate / 10000 , "Collateral not enough");
         //transfer NFT
         IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
         createLoan( onBehalfOf, nftAsset, nftTokenId, reserveAsset, amount);
@@ -144,7 +144,7 @@ contract LendPool is ILendPool{
         uint256 amount
     ) public returns (uint256){
    
-        uint256 scaledBorrowAmount = amount / reserveData.borrowIndex;
+        uint256 scaledBorrowAmount = amount * 100000000 / 100000000;
         LoanData memory ld = LoanData(loanNonce,LoanState.Active,onBehalfOf,nftAsset,nftTokenId, reserveAsset, scaledBorrowAmount);
         nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
         loanDataList[loanNonce] = ld;

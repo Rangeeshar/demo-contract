@@ -7,13 +7,13 @@ import "@openzeppelin/contracts/utils/Counters.sol";
 
 contract MockNFT is ERC721 {
     using Counters for Counters.Counter;
-    Counters.Counter private _tokenIds;
+    uint256 private _tokenIds;
 
     constructor() ERC721("MetaLand Mock", "MLM") {}
 
     function mint(address to) public {
-        uint256 tokenId = _tokenIds.current();
-        _tokenIds.increment();
+        uint256 tokenId = _tokenIds;
+        _tokenIds++;
         _mint(to, tokenId);
     }
 }
