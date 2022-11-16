@@ -12,7 +12,8 @@ describe("Lend Protocol", function () {
   var mockOracle: any;
   var weth: any;
   var mockNFT: any;
-  
+  var lendPool: any;
+  var wethGateway: any;
   
   this.beforeEach(async () => {
 
@@ -24,6 +25,11 @@ describe("Lend Protocol", function () {
 
     const MockNFT = await ethers.getContractFactory("MockNFT");
     mockNFT = await MockNFT.deploy();
+
+    const LendPool = await ethers.getContractFactory("LendPool");
+    lendPool = await LendPool.deploy();
+    const WETHGateway = await ethers.getContractFactory("WETHGateway");
+    wethGateway = await WETHGateway.deploy(weth.address, lendPool.address, mockNFT.address);
 
 
   });
@@ -77,107 +83,28 @@ describe("Lend Protocol", function () {
 
   describe("Lend Pool", async () => {
 
-    it("Init contract", async function() {
-      const [owner, addr1, addr2] = await ethers.getSigners();
-      const LendPool = await ethers.getContractFactory("LendPool");
-      const lendPool = await LendPool.deploy(1000, mockOracle.address);
-      await lendPool.deployed();
-    })
+    // it("Init contract", async function() {
+    //   const [owner, addr1, addr2] = await ethers.getSigners();
+    //   const LendPool = await ethers.getContractFactory("LendPool");
+    //   const lendPool = await LendPool.deploy();
+    //   await lendPool.deployed();
+    // })
  
-    it("Deposit and withdraw 1 Ether from WETHGateway to Lend Pool", async function() {
-      const [owner, addr1, addr2] = await ethers.getSigners();
-      var lendPool: any;
-      var wethGateway: any;
-      
-      const LendPool = await ethers.getContractFactory("LendPool");
-      const WETHGateway = await ethers.getContractFactory("WETHGateway");
-      
-      /**
-       * @param {uint256} Borrow rate: set borrow rate to 10%: 1 = 0.01%
-       * @param {address} Oracle addree 
-       **/
-      lendPool = await LendPool.deploy(1000, mockOracle.address);
-      wethGateway = await WETHGateway.deploy(weth.address, lendPool.address, mockNFT.address);
-      await mockOracle.deployed();
-      await wethGateway.deployed();
+    it("Variable Deposit", async function() {
+
       await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
 
-      await lendPool.approveWETHGateway(weth.address, wethGateway.address);
-      await wethGateway.depositETH(owner.address,{value: ethers.utils.parseUnits("1","ether")});
-
+      await wethGateway.depositETH(owner.address, 0,{value: ethers.utils.parseUnits("1","ether")});
+      
       // check WETH balance of lend pool
       const balanceOfPool = await weth.balanceOf(lendPool.address);
       expect(balanceOfPool).to.equal(oneEther);
-
-      //check balance of depositor
-      const balanceOfDep = await lendPool.getDepositBalance(owner.address);
-      expect(balanceOfDep).to.equal(oneEther);
-
-      //withdraw eth from the pool
-      await wethGateway.withdrawETH(oneEther, owner.address);
-      //check balance of depositor
-      const balanceAfterWithdraw = await lendPool.getDepositBalance(owner.address);
-      expect(balanceAfterWithdraw).to.equal(0);
-
-
+      
+  
     })
 
-    
-
-    it("borrow  Ether from Lend Pool", async function() {
-      const [owner, addr1, addr2] = await ethers.getSigners();
-      var lendPool: any;
-      var wethGateway: any;
-      
-      const LendPool = await ethers.getContractFactory("LendPool");
-      const WETHGateway = await ethers.getContractFactory("WETHGateway");
-      
-      lendPool = await LendPool.deploy(1000, mockOracle.address);
-      wethGateway = await WETHGateway.deploy(weth.address, lendPool.address, mockNFT.address);
-      await mockOracle.deployed();
-      await wethGateway.deployed();
-      await lendPool.deployed();
-
-
-
-
-      await lendPool.approveWETHGateway(weth.address, wethGateway.address);
-      // Deposit 20 ether to the pool
-      await wethGateway.depositETH(owner.address,{value: ethers.utils.parseUnits("20","ether")});
-
-
-      //check borrow index value
-      const borrowIndex = await lendPool.reserveData();
-      console.log("bowrrow index"+borrowIndex);
-      // expect(borrowIndex).to.equal(100000000);
-
-      // check WETH balance of lend pool
-      const balanceOfPool = await weth.balanceOf(lendPool.address);
-      expect(balanceOfPool).to.equal(oneEther.mul(20));
-
-      // mint 1 nft to owner address
-      await mockNFT.mint(owner.address);
-      const nftBalance = await mockNFT.balanceOf(owner.address);
-      //check nft owed by the address
-      const ownerAddress = await mockNFT.ownerOf(0);
-      expect(nftBalance).to.equal(1);
-      expect(ownerAddress).to.equal(owner.address);
-
-
-      // approve nft
-      await mockNFT.setApprovalForAll(wethGateway.address,true);
-      // await mockNFT.approve(wethGateway.address,0);
-      
-      // await mockNFT.approve(wethGateway.address,1);
-      // balance before borrow
-      const pBalance = await owner.getBalance();
-      console.log("pbalance "+ pBalance);
-      // borrow ether from the pool
-      // await wethGateway.borrowETH(oneEther.div(10), mockNFT.address, 0, owner.address);
-
-      // const balanceOfDep = await lendPool.getDepositBalance(owner.address);
-      // expect(balanceOfDep).to.equal(oneEther);
-    })
+  
 
     
   })

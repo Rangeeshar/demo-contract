@@ -5,5 +5,8 @@ pragma solidity 0.8.17;
 
 library DataTypes {
 
-
+    enum DepositPeriod {
+        variable,
+        threeMonth
+    }
 }

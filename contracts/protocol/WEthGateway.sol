@@ -21,22 +21,29 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
 
     }
 
-    function depositETH(address onBehalfOf) external payable override {
+    function depositETH(address onBehalfOf, uint8 depositPeriod) external payable override {
         
         WETH.deposit{value: msg.value}();
-        LendPool.deposit(address(WETH), msg.value, onBehalfOf);
+        LendPool.deposit(address(WETH), msg.value,depositPeriod ,onBehalfOf);
     }
 
-    function withdrawETH(uint256 amount, address to) external {
+    function withdrawETH(uint256 amount, address to, uint8 depositPeriod) external {
         
-        uint256 userBalance = LendPool.getDepositBalance(msg.sender);
+        // uint256 userBalance = LendPool.getDepositBalance(msg.sender);
         uint256 amountToWithdraw = amount;
 
-        if(amount == type(uint256).max){
-            amountToWithdraw  = userBalance;
+        // if(amount == type(uint256).max){
+        //     amountToWithdraw  = userBalance;
+        // }
+
+        if(depositPeriod == 0){
+            LendPool.vWithdraw(address(WETH), amountToWithdraw, address(this),to); 
         }
 
-        LendPool.withdraw(address(WETH), amountToWithdraw, address(this),to); 
+        if(depositPeriod == 1){
+            LendPool.fWithdraw(address(WETH), amountToWithdraw, address(this),to); 
+        }
+        
         WETH.withdraw(amountToWithdraw);
         _safeTransferETH(to,amountToWithdraw);
     }
@@ -48,14 +55,14 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
         address onBehalfOf
     ) external{
         
-        uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
-        if(loanId == 0){
-            IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
-        }
+        // uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
+        // if(loanId == 0){
+        //     IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
+        // }
 
-        LendPool.borrow(address(WETH), amount, nftAsset, nftTokenId, onBehalfOf);
-        WETH.withdraw(amount);
-        _safeTransferETH(onBehalfOf, amount);
+        // LendPool.borrow(address(WETH), amount, nftAsset, nftTokenId, onBehalfOf);
+        // WETH.withdraw(amount);
+        // _safeTransferETH(onBehalfOf, amount);
     }
 
     function repayETH(
@@ -79,23 +86,23 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
         uint256 amount
     ) internal returns (uint256, bool) {
 
-        uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
-        require(loanId > 0, "collateral loan id not exist");
+        // uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
+        // require(loanId > 0, "collateral loan id not exist");
 
-        address reserveAsset = address(WETH);
-        uint256 repayDebtAmount = LendPool.getDebtAmount(loanId);
+        // address reserveAsset = address(WETH);
+        // uint256 repayDebtAmount = LendPool.getDebtAmount(loanId);
 
-        if(amount < repayDebtAmount){
-            repayDebtAmount = amount;
-        }
+        // if(amount < repayDebtAmount){
+        //     repayDebtAmount = amount;
+        // }
 
-        require(msg.value >= repayDebtAmount,"msg.value is less than repay amount");
+        // require(msg.value >= repayDebtAmount,"msg.value is less than repay amount");
 
-        WETH.deposit{value: repayDebtAmount}();
-        // burn: burnt amount of the loan
-        (uint256 paybackAmount, bool burn) = LendPool.repay(nftAsset, nftTokenId, amount);
+        // WETH.deposit{value: repayDebtAmount}();
+        // // burn: burnt amount of the loan
+        // (uint256 paybackAmount, bool burn) = LendPool.repay(nftAsset, nftTokenId, amount);
 
-        return (paybackAmount, burn);
+        // return (paybackAmount, burn);
     }
 
     /**
