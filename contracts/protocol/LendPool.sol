@@ -71,12 +71,14 @@ contract LendPool  is ILendPool{
         address initiator,
         address to
     ) public override {
+        require(amount != 0, "Amount must be greater than 0");
 
         updateDepositState(DepositPeriod.variable, to);
         uint256 userBalance = variableDepositBalanceList[to].balance;
 
-        require(amount != 0, "Amount must be greater than 0");
         require(amount <= userBalance, "Balance not enough");
+        
+        IERC20Upgradeable(asset).transferFrom(address(this),initiator, amount);
     }
 
     function fWithdraw(
@@ -111,8 +113,6 @@ contract LendPool  is ILendPool{
         }
     }
 
-    
-
     /**
      * @return accrued interest ratio
      */
@@ -124,6 +124,17 @@ contract LendPool  is ILendPool{
         uint256 timeDifference = block.timestamp - (uint256(lastUpdateTimestamp));
 
         return ((rate * (timeDifference)) / SECONDS_PER_YEAR);
+    }
+
+    // 0 -> Variable, 1 -> three month
+    function getDepositData(address depositor, uint8 depositPeriod) public view returns(DepositData memory){
+        
+        if(depositPeriod == 0){
+            return variableDepositBalanceList[depositor];
+        }
+        if(depositPeriod == 1){
+            return threeMonthDepositBalanceList[depositor];
+        }
     }
 
 

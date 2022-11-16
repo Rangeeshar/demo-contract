@@ -19,7 +19,7 @@ describe("Lend Protocol", function () {
 
     const MockOracle = await ethers.getContractFactory("MockOracle");
     mockOracle = await MockOracle.deploy();
-    console.log("oracle address= " + mockOracle.address);
+    // console.log("oracle address= " + mockOracle.address);
     const WETH = await ethers.getContractFactory("WETHMocked");
     weth = await WETH.deploy();
 
@@ -90,23 +90,85 @@ describe("Lend Protocol", function () {
     //   await lendPool.deployed();
     // })
  
-    it("Variable Deposit", async function() {
+    it("Variable Deposit and Fixed Deposit", async function() {
 
       await lendPool.deployed();
       const [owner, addr1, addr2] = await ethers.getSigners();
 
+      // variable deposit
       await wethGateway.depositETH(owner.address, 0,{value: ethers.utils.parseUnits("1","ether")});
       
-      // check WETH balance of lend pool
+      // check WETH balance of variable lend pool
       const balanceOfPool = await weth.balanceOf(lendPool.address);
       expect(balanceOfPool).to.equal(oneEther);
-      
-  
+
+      // check the depositor balance 
+      const vUserDepositData = await lendPool.getDepositData(owner.address,0);
+      expect(vUserDepositData.balance).to.equal(oneEther);
+
+      // fixed deposit
+      await wethGateway.depositETH(owner.address, 1,{value: ethers.utils.parseUnits("1","ether")});
+
+      // check the depositor balance 
+      const fUserDepositData = await lendPool.getDepositData(owner.address,1);
+      expect(fUserDepositData.balance).to.equal(oneEther);
     })
 
-  
+    it("Time-dependent tests", async function() {
 
-    
+      await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
+
+      // getting timestamp
+      const blockNumBefore = await ethers.provider.getBlockNumber();
+      const blockBefore = await ethers.provider.getBlock(blockNumBefore);
+      const timestampBefore = blockBefore.timestamp;
+
+      // increase time
+      await ethers.provider.send("evm_increaseTime", [3600*24*365]);
+      await ethers.provider.send("evm_mine");
+
+      // getting timestamp
+      const blockNumAfter = await ethers.provider.getBlockNumber();
+      const blockAfter  = await ethers.provider.getBlock(blockNumAfter);
+      const timestampAfter  = blockAfter.timestamp;
+      expect(timestampAfter).to.equal(timestampBefore + 3600*24*365);
+    })
+
+
+
+    it("1 year Variable Withdraw", async function() {
+
+      await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
+
+      // variable deposit  11 ether
+      await wethGateway.connect(addr1).depositETH(addr1.address,0,{value: ethers.utils.parseUnits("10","ether")});
+      await wethGateway.depositETH(owner.address, 0,{value: ethers.utils.parseUnits("1","ether")});
+      const balanceOfPool = await weth.balanceOf(lendPool.address);
+
+      //check weth balance of the pool
+      expect(balanceOfPool).to.equal(oneEther.mul(11));
+      
+      await lendPool.approveWETHGateway(weth.address, wethGateway.address);
+
+      await ethers.provider.send("evm_increaseTime", [3600*24*365]);
+      await ethers.provider.send("evm_mine");
+
+      // deposit for 1 year and receive 5% interest
+      await wethGateway.withdrawETH(oneEther.mul(105).div(100),owner.address,0);
+
+
+      const balanceAfter = await lendPool.getDepositData(owner.address,0).balance;
+
+      console.log(balanceAfter);
+
+    })
+
+
+
+
+
   })
 
 });
