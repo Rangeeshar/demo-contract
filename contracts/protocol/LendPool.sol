@@ -62,10 +62,19 @@ contract LendPool is ILendPool{
 
     constructor(uint256 borrowRate, address _oracleAddr ) {
         // reserveData = ReserveData();
-        reserveData.liquidityIndex = 100000000;
-        reserveData.borrowIndex = 100000000;
-        reserveData.currentBorrowRate = borrowRate;
-        reserveData.lastUpdateTimestamp = block.timestamp;
+        reserveData = ReserveData({
+            liquidityIndex:100000000,
+            borrowIndex:100000000,
+            scaledLiquidityAmount: 0,
+            scaledBorrowedAmount: 0,
+            currentLiquidityRate: 0,
+            currentBorrowRate:borrowRate,
+            lastUpdateTimestamp:block.timestamp
+        });
+        // reserveData.liquidityIndex = 100000000;
+        // reserveData.borrowIndex = 100000000;
+        // reserveData.currentBorrowRate = borrowRate;
+        // reserveData.lastUpdateTimestamp = block.timestamp;
         //1 = 0.01%
         collateralRate = 5000;
         oracleAddr = _oracleAddr;
@@ -143,8 +152,8 @@ contract LendPool is ILendPool{
         address reserveAsset,
         uint256 amount
     ) public returns (uint256){
-   
-        uint256 scaledBorrowAmount = amount * 100000000 / 100000000;
+        uint borrowIndex = reserveData.borrowIndex;
+        uint256 scaledBorrowAmount = amount * 100000000 / (borrowIndex + 1);
         LoanData memory ld = LoanData(loanNonce,LoanState.Active,onBehalfOf,nftAsset,nftTokenId, reserveAsset, scaledBorrowAmount);
         nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
         loanDataList[loanNonce] = ld;

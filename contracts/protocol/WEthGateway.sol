@@ -37,7 +37,7 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
         }
 
         LendPool.withdraw(address(WETH), amountToWithdraw, address(this),to); 
-        WETH.withdraw((amountToWithdraw));
+        WETH.withdraw(amountToWithdraw);
         _safeTransferETH(to,amountToWithdraw);
     }
 
