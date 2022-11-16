@@ -146,10 +146,10 @@ describe("Lend Protocol", function () {
       await wethGateway.depositETH(owner.address,{value: ethers.utils.parseUnits("20","ether")});
 
 
-            //check borrow index value
-            const borrowIndex = await lendPool.reserveData();
-            console.log("bowrrow index"+borrowIndex);
-            // expect(borrowIndex).to.equal(100000000);
+      //check borrow index value
+      const borrowIndex = await lendPool.reserveData();
+      console.log("bowrrow index"+borrowIndex);
+      // expect(borrowIndex).to.equal(100000000);
 
       // check WETH balance of lend pool
       const balanceOfPool = await weth.balanceOf(lendPool.address);
