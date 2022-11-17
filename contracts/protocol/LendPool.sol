@@ -73,11 +73,12 @@ contract LendPool  is ILendPool{
     ) public override {
         require(amount != 0, "Amount must be greater than 0");
 
-        updateDepositState(DepositPeriod.variable, to);
+        updateDepositState(0, to);
         uint256 userBalance = variableDepositBalanceList[to].balance;
 
         require(amount <= userBalance, "Balance not enough");
-        
+        // decrease balance
+        variableDepositBalanceList[to].balance = userBalance - amount;
         IERC20Upgradeable(asset).transferFrom(address(this),initiator, amount);
     }
 
@@ -90,26 +91,30 @@ contract LendPool  is ILendPool{
         uint256 depositedPeriod = block.timestamp - threeMonthDepositBalanceList[to].lastUpdateTimestamp;
         require(depositedPeriod >= THREE_MONTH, " Fund Locked");
 
-        updateDepositState(DepositPeriod.threeMonth, to);
+        updateDepositState(1, to);
         uint256 userBalance = threeMonthDepositBalanceList[to].balance;
 
         require(amount != 0, "Amount must be greater than 0");
         require(amount <= userBalance, "Balance not enough");
+        threeMonthDepositBalanceList[to].balance = userBalance - amount;
+        IERC20Upgradeable(asset).transferFrom(address(this),initiator, amount);
 
     }
 
-    function updateDepositState(DepositPeriod depositPeriod, address onBehalfOf) internal {
+    function updateDepositState(uint8 depositPeriod, address onBehalfOf) public {
         
-        if(depositPeriod == DepositPeriod.variable){
+        if(depositPeriod == 0){
             uint256 accruedInterest = calculateLinearInterest(vLiquidityRate,variableDepositBalanceList[onBehalfOf].lastUpdateTimestamp);
             uint256 currentBalance = variableDepositBalanceList[onBehalfOf].balance * (10000 + accruedInterest) / 10000;
             variableDepositBalanceList[onBehalfOf].balance = currentBalance;
+            variableDepositBalanceList[onBehalfOf].lastUpdateTimestamp = block.timestamp;
         }
 
-        if(depositPeriod == DepositPeriod.threeMonth){
+        if(depositPeriod == 1){
             uint256 accruedInterest = calculateLinearInterest(threeLiquidityRate,threeMonthDepositBalanceList[onBehalfOf].lastUpdateTimestamp);
             uint256 currentBalance = threeMonthDepositBalanceList[onBehalfOf].balance * (10000 + accruedInterest) / 10000;
             threeMonthDepositBalanceList[onBehalfOf].balance = currentBalance;
+            threeMonthDepositBalanceList[onBehalfOf].lastUpdateTimestamp = block.timestamp;
         }
     }
 

@@ -158,11 +158,37 @@ describe("Lend Protocol", function () {
       // deposit for 1 year and receive 5% interest
       await wethGateway.withdrawETH(oneEther.mul(105).div(100),owner.address,0);
 
+      
+      const depositData = await lendPool.getDepositData(owner.address,0);
+      expect(depositData.balance).to.equal(0);
+      // console.log(depositData.balance);
+    })
 
-      const balanceAfter = await lendPool.getDepositData(owner.address,0).balance;
+    it("3 months fixed Withdraw", async function() {
 
-      console.log(balanceAfter);
+      await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
 
+      // fixed rate deposit: 11 ether
+      await wethGateway.connect(addr1).depositETH(addr1.address,1,{value: ethers.utils.parseUnits("10","ether")});
+      await wethGateway.depositETH(owner.address, 1,{value: ethers.utils.parseUnits("1","ether")});
+      const balanceOfPool = await weth.balanceOf(lendPool.address);
+
+      //check weth balance of the pool
+      expect(balanceOfPool).to.equal(oneEther.mul(11));
+      
+      await lendPool.approveWETHGateway(weth.address, wethGateway.address);
+
+      await ethers.provider.send("evm_increaseTime", [3600*24*90]);
+      await ethers.provider.send("evm_mine");
+
+      // update state
+      await lendPool.updateDepositState(1, owner.address);
+
+      // deposit for 90days and receive 2.46% interest
+      const depositData = await lendPool.getDepositData(owner.address,1); 
+      const expectedBalance = oneEther.mul(10246).div(10000); 
+      expect(depositData.balance).to.equal(expectedBalance);
     })
 
 
