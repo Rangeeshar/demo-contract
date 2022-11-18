@@ -1,24 +1,40 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.17;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import {IERC721ReceiverUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
 import {IMockOracle} from "../interfaces/IMockOracle.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
-contract LendPool  is ILendPool{
+contract LendPool  is ILendPool, Ownable{
 
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
     uint256 internal constant THREE_MONTH = 90 days;
 
+    // deposit part
     mapping(address => DepositData) public variableDepositBalanceList;
     mapping(address => DepositData) public threeMonthDepositBalanceList;
-    mapping(address => uint256) public borrowDebtList;
 
+    // borrow part
+    uint256 loanNonce;
+    // nftAsset + nftTokenId => loanId
+    mapping(address => mapping(uint256 => uint256)) private nftToLoanIds;
+    mapping(uint256 => LoanData) public loanList;
+    // 0.01% = 1
+    mapping(address => uint256) public borrowRateList;
+     
+
+    // Rates
     //0.01% = 1
     uint256 public vLiquidityRate = 500;
     uint256 public threeLiquidityRate = 1000;
+    // uint256 public borrowRateA = 500;
+    // uint256 public borrowRateB = 1000;
+
+    uint256 collateralRate = 3000;
+    address oracleAddr;
 
     IWETH internal WETH;
 
@@ -34,7 +50,22 @@ contract LendPool  is ILendPool{
         uint256 lastUpdateTimestamp;
     }
 
-    constructor() {
+    struct LoanData {
+        uint256 loanId;
+        //0 -> Active, 1 -> Repaid
+        uint256 state;
+        address borrower;
+        address nftAsset;
+        uint256 nftTokenId;
+        uint256 borrowedAmount;
+        // 0 -> A, 1 -> B
+        uint8 assetClass;
+        uint256 lastUpdateTimestamp;
+    }
+
+    constructor(address _oracle, address _weth) {
+        oracleAddr = _oracle;
+        WETH = IWETH(_weth);
     }
 
     //0 -> v, 1 -> three
@@ -118,6 +149,32 @@ contract LendPool  is ILendPool{
         }
     }
 
+    function borrow(
+        address reserveAssert,
+        uint256 amount,
+        address nftAsset,
+        uint256 nftTokenId,
+        address onBehalfOf
+    ) public {
+        require(onBehalfOf != address(0), "Invalid OnBehalfof");
+        updateBorrowState(nftAsset, nftTokenId);
+        uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice(nftAsset,nftTokenId);
+        require(amount <= nftPrice * collateralRate / 10000 , "Collateral not enough");
+        IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
+        IERC20Upgradeable(address(WETH)).transferFrom(address(this),msg.sender, amount);
+    }
+
+    function updateBorrowState(address nftAsset, uint256 nftTokenId) public {
+        uint256 loanId = nftToLoanIds[nftAsset][nftTokenId];
+        LoanData memory loanData = loanList[loanId];
+        uint256 accruedInterest = calculateLinearInterest(borrowRateList[nftAsset],loanList[loanId].lastUpdateTimestamp);
+        uint256 currentDebt = loanList[loanId].borrowedAmount * ( 10000 + accruedInterest) / 10000;
+        loanList[loanId].borrowedAmount = currentDebt;
+        loanList[loanId].lastUpdateTimestamp = block.timestamp;
+    }
+
+
+
     /**
      * @return accrued interest ratio
      */
@@ -131,6 +188,8 @@ contract LendPool  is ILendPool{
         return ((rate * (timeDifference)) / SECONDS_PER_YEAR);
     }
 
+
+
     // 0 -> Variable, 1 -> three month
     function getDepositData(address depositor, uint8 depositPeriod) public view returns(DepositData memory){
         
@@ -142,6 +201,14 @@ contract LendPool  is ILendPool{
         }
     }
 
+    // 0 -> A, 1 -> B
+    function setNftAssetRate(address nftAsset, uint256 rate) public onlyOwner {
+        borrowRateList[nftAsset] = rate;
+    }
+
+    function getCollateralLoanId(address nftAsset, uint256 nftId) public returns(uint256){
+        return nftToLoanIds[nftAsset][nftId];
+    }
 
     function onERC721Received(
         address operator,
@@ -160,5 +227,6 @@ contract LendPool  is ILendPool{
         WETH = IWETH(wethAddr);
         WETH.approve(wethGatewayAddr, type(uint256).max);
     }
+
 
 }

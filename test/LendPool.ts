@@ -19,7 +19,7 @@ describe("Lend Protocol", function () {
 
     const MockOracle = await ethers.getContractFactory("MockOracle");
     mockOracle = await MockOracle.deploy();
-    // console.log("oracle address= " + mockOracle.address);
+   
     const WETH = await ethers.getContractFactory("WETHMocked");
     weth = await WETH.deploy();
 
@@ -27,10 +27,15 @@ describe("Lend Protocol", function () {
     mockNFT = await MockNFT.deploy();
 
     const LendPool = await ethers.getContractFactory("LendPool");
-    lendPool = await LendPool.deploy();
+    lendPool = await LendPool.deploy(mockOracle.address, weth.address);
+
     const WETHGateway = await ethers.getContractFactory("WETHGateway");
     wethGateway = await WETHGateway.deploy(weth.address, lendPool.address, mockNFT.address);
 
+    // nft approval
+    await mockNFT.setApprovalForAll(wethGateway.address, true);
+    // approve wethGateway to transfer  
+    await lendPool.approveWETHGateway(weth.address, wethGateway.address);
 
   });
 
@@ -191,6 +196,60 @@ describe("Lend Protocol", function () {
       expect(depositData.balance).to.equal(expectedBalance);
     })
 
+    it("SetNftAssetRate ", async function() {
+
+      await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
+
+      // set mock nft rate as 10%
+      await lendPool.setNftAssetRate(mockNFT.address, 1000);
+      const borrowRate = await lendPool.borrowRateList(mockNFT.address);
+      // console.log(borrowRate);
+      expect(borrowRate).to.equal(1000);
+    })
+
+    it("NFT approval ", async function() {
+
+      await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
+
+      // approve WETH Gateway to transfer from users
+      const isApprovedForAll = await mockNFT.isApprovedForAll(owner.address, wethGateway.address);
+      expect(isApprovedForAll).to.equal(true);
+
+      // approve lend pool to transfer from WETH Gateway
+      const isApprovedForPool = await mockNFT.isApprovedForAll(wethGateway.address, lendPool.address);
+      expect(isApprovedForPool).to.equal(true);
+
+    })
+
+    it("Borrow ", async function() {
+
+      await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
+
+      // set borrow rates
+
+      // deposit ethers to the pool
+      await lendPool.setNftAssetRate(mockNFT.address, 1000);
+
+      //deposit Ethers to the pool
+      await wethGateway.depositETH(owner.address, 0,{value: ethers.utils.parseUnits("10","ether")});
+      const balanceOfPool = await weth.balanceOf(lendPool.address);
+      expect(balanceOfPool).to.equal(oneEther.mul(10));
+
+      // mint nft to the borrower
+      await mockNFT.mint(owner.address);
+      // check nft owner
+      const nftOwner = await mockNFT.ownerOf(0);
+      expect(nftOwner).to.equal(owner.address);
+
+
+
+      // borrow 0.25 ether
+      await wethGateway.borrowETH(oneEther.div(4), mockNFT.address, 0, owner.address);
+
+    })
 
 
 

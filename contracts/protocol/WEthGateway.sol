@@ -12,9 +12,9 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
     IWETH internal WETH;
     ILendPool internal LendPool;
 
-    constructor(address weth, address lendPool, address nftAsset) {
+    constructor(address _weth, address lendPool, address nftAsset) {
         
-        WETH = IWETH(weth);
+        WETH = IWETH(_weth);
         LendPool = ILendPool(lendPool);
         WETH.approve(lendPool, type(uint256).max);
         IERC721Upgradeable(nftAsset).setApprovalForAll(lendPool,true);
@@ -55,14 +55,14 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
         address onBehalfOf
     ) external{
         
-        // uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
-        // if(loanId == 0){
-        //     IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
-        // }
+        uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
+        if(loanId == 0){
+            IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
+        }
 
-        // LendPool.borrow(address(WETH), amount, nftAsset, nftTokenId, onBehalfOf);
-        // WETH.withdraw(amount);
-        // _safeTransferETH(onBehalfOf, amount);
+        LendPool.borrow(address(WETH), amount, nftAsset, nftTokenId, onBehalfOf);
+        WETH.withdraw(amount);
+        _safeTransferETH(onBehalfOf, amount);
     }
 
     function repayETH(
