@@ -228,8 +228,8 @@ describe("Lend Protocol", function () {
       await lendPool.deployed();
       const [owner, addr1, addr2] = await ethers.getSigners();
 
-      // set borrow rates
-
+      // set mock nft rate as 10%
+      await lendPool.setNftAssetRate(mockNFT.address, 1000);
       // deposit ethers to the pool
       await lendPool.setNftAssetRate(mockNFT.address, 1000);
 
@@ -244,10 +244,16 @@ describe("Lend Protocol", function () {
       const nftOwner = await mockNFT.ownerOf(0);
       expect(nftOwner).to.equal(owner.address);
 
-
-
       // borrow 0.25 ether
       await wethGateway.borrowETH(oneEther.div(4), mockNFT.address, 0, owner.address);
+
+      // check debt
+      const loanId = await lendPool.getCollateralLoanId(mockNFT.address, 0);
+      const loanData = await lendPool.loanList(loanId);
+      expect(loanData.borrowedAmount).to.equal(oneEther.div(4));
+      
+      // check left weth in the pool
+
 
     })
 

@@ -59,7 +59,7 @@ contract LendPool  is ILendPool, Ownable{
         uint256 nftTokenId;
         uint256 borrowedAmount;
         // 0 -> A, 1 -> B
-        uint8 assetClass;
+        // uint8 assetClass;
         uint256 lastUpdateTimestamp;
     }
 
@@ -160,6 +160,12 @@ contract LendPool  is ILendPool, Ownable{
         updateBorrowState(nftAsset, nftTokenId);
         uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice(nftAsset,nftTokenId);
         require(amount <= nftPrice * collateralRate / 10000 , "Collateral not enough");
+
+        LoanData memory loanData = LoanData(loanNonce, 0, onBehalfOf, nftAsset, nftTokenId, amount, block.timestamp);
+        nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
+        loanList[loanNonce] = loanData;
+        loanNonce++;
+
         IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
         IERC20Upgradeable(address(WETH)).transferFrom(address(this),msg.sender, amount);
     }
@@ -206,8 +212,9 @@ contract LendPool  is ILendPool, Ownable{
         borrowRateList[nftAsset] = rate;
     }
 
-    function getCollateralLoanId(address nftAsset, uint256 nftId) public returns(uint256){
-        return nftToLoanIds[nftAsset][nftId];
+    function getCollateralLoanId(address nftAsset, uint256 nftId) view public returns(uint256){
+        uint256 id = nftToLoanIds[nftAsset][nftId];
+        return id;
     }
 
     function onERC721Received(
