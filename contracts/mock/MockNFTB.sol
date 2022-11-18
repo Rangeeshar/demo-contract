@@ -4,10 +4,10 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
-contract MockNFT is ERC721 {
+contract MockNFTB is ERC721 {
     uint256 private _tokenIds;
 
-    constructor() ERC721("MetaLand Mock", "MLM") {}
+    constructor() ERC721("MetaLand B", "MB") {}
 
     function mint(address to) public {
         uint256 tokenId = _tokenIds;

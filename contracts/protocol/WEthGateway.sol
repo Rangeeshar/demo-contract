@@ -115,6 +115,10 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
         require(success, "ETH_TRANSFER_FAILED");
     }
 
+    function approveNFT(address nftAsset, address operator) public {
+        IERC721Upgradeable(nftAsset).setApprovalForAll(operator,true);
+    }
+
     receive() external payable {
         require(msg.sender == address(WETH), "Receive not allowed");
     }

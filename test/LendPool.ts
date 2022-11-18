@@ -14,6 +14,7 @@ describe("Lend Protocol", function () {
   var mockNFT: any;
   var lendPool: any;
   var wethGateway: any;
+  var mockNFTB: any;
   
   this.beforeEach(async () => {
 
@@ -26,6 +27,9 @@ describe("Lend Protocol", function () {
     const MockNFT = await ethers.getContractFactory("MockNFT");
     mockNFT = await MockNFT.deploy();
 
+    const MockNFTB = await ethers.getContractFactory("MockNFTB");
+    mockNFTB = await MockNFT.deploy();
+
     const LendPool = await ethers.getContractFactory("LendPool");
     lendPool = await LendPool.deploy(mockOracle.address, weth.address);
 
@@ -34,6 +38,8 @@ describe("Lend Protocol", function () {
 
     // nft approval
     await mockNFT.setApprovalForAll(wethGateway.address, true);
+    await mockNFTB.setApprovalForAll(wethGateway.address, true);
+    await wethGateway.approveNFT(mockNFTB.address, lendPool.address);
     // approve wethGateway to transfer  
     await lendPool.approveWETHGateway(weth.address, wethGateway.address);
 
@@ -240,22 +246,81 @@ describe("Lend Protocol", function () {
 
       // mint nft to the borrower
       await mockNFT.mint(owner.address);
+      await mockNFT.mint(addr1.address);
+
       // check nft owner
       const nftOwner = await mockNFT.ownerOf(0);
+      const nftOwner2 = await mockNFT.ownerOf(1);
       expect(nftOwner).to.equal(owner.address);
+      expect(nftOwner2).to.equal(addr1.address);
+
+      // approve
+      await mockNFT.connect(addr1).setApprovalForAll(wethGateway.address, true);
 
       // borrow 0.25 ether
       await wethGateway.borrowETH(oneEther.div(4), mockNFT.address, 0, owner.address);
+      await wethGateway.connect(addr1).borrowETH(oneEther.div(4), mockNFT.address, 1, addr1.address);
 
       // check debt
       const loanId = await lendPool.getCollateralLoanId(mockNFT.address, 0);
+      const loanId2 = await lendPool.getCollateralLoanId(mockNFT.address, 1);
       const loanData = await lendPool.loanList(loanId);
+      const loanData2 = await lendPool.loanList(loanId2);
       expect(loanData.borrowedAmount).to.equal(oneEther.div(4));
-      
+      expect(loanData2.borrowedAmount).to.equal(oneEther.div(4));
       // check left weth in the pool
 
+    })
+
+    it("Multi Borrow Interest Rates", async function() {
+
+      await lendPool.deployed();
+      const [owner, addr1, addr2] = await ethers.getSigners();
+
+      // set mock nft rate as 10%
+      await lendPool.setNftAssetRate(mockNFT.address, 1000);
+      await lendPool.setNftAssetRate(mockNFTB.address, 2000);
+
+      //deposit Ethers to the pool
+      await wethGateway.depositETH(owner.address, 0,{value: ethers.utils.parseUnits("10","ether")});
+      const balanceOfPool = await weth.balanceOf(lendPool.address);
+      expect(balanceOfPool).to.equal(oneEther.mul(10));
+
+      // mint nft to the borrower
+      await mockNFT.mint(owner.address);
+      await mockNFTB.mint(owner.address);
+
+      const nftOwner = await mockNFT.ownerOf(0);
+      const nftBOwner = await mockNFTB.ownerOf(0);
+      expect(nftOwner).to.equal(owner.address);
+      expect(nftBOwner).to.equal(owner.address);
+
+      // borrow 0.2 ether
+      await wethGateway.borrowETH(oneEther.div(5), mockNFT.address, 0, owner.address);
+      await wethGateway.borrowETH(oneEther.div(5), mockNFTB.address, 0, owner.address);
+      
+      // after 1 year
+      await ethers.provider.send("evm_increaseTime", [3600*24*365]);
+      await ethers.provider.send("evm_mine");
+
+      await lendPool.updateBorrowState(mockNFT.address, 0);
+      await lendPool.updateBorrowState(mockNFTB.address, 0);
+
+      // check debt
+      const loanId = await lendPool.getCollateralLoanId(mockNFT.address, 0);
+      const loanBId = await lendPool.getCollateralLoanId(mockNFTB.address, 0);
+
+      const loanData = await lendPool.loanList(loanId);
+      const loanBData = await lendPool.loanList(loanBId);
+
+      expect(loanData.borrowedAmount).to.equal(oneEther.div(5).mul(11).div(10));
+      expect(loanBData.borrowedAmount).to.equal(oneEther.div(5).mul(12).div(10));
 
     })
+
+
+
+    
 
 
 
