@@ -34,10 +34,21 @@ interface ILendPool {
         address onBehalfOf
     ) external;
 
+    function updateBorrowState(address nftAsset, uint256 nftTokenId) external;
+
+    function repay(
+        address nftAsset,
+        uint256 nftTokenId,
+        uint256 loanId,
+        uint256 amount
+    ) external returns (uint256);
+
     function getCollateralLoanId(
         address nftAsset, 
         uint256 nftId
     ) external returns(uint256);
 
+    function getUserLoan(address borrower) external returns(uint256);
 
+    function getDebtAmount(uint256 loanId) external returns(uint256);
 }

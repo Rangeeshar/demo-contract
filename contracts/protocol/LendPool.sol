@@ -18,10 +18,13 @@ contract LendPool  is ILendPool, Ownable{
     mapping(address => DepositData) public threeMonthDepositBalanceList;
 
     // borrow part
-    uint256 loanNonce;
+    uint256 loanNonce = 1;
     // nftAsset + nftTokenId => loanId
     mapping(address => mapping(uint256 => uint256)) private nftToLoanIds;
+    // ID -> Loan Data
     mapping(uint256 => LoanData) public loanList;
+    // user address -> loan id (0 -> no loan)
+    mapping(address => uint256) public userLoan;
     // 0.01% = 1
     mapping(address => uint256) public borrowRateList;
      
@@ -157,6 +160,7 @@ contract LendPool  is ILendPool, Ownable{
         address onBehalfOf
     ) public {
         require(onBehalfOf != address(0), "Invalid OnBehalfof");
+        require(userLoan[onBehalfOf] == 0, "Only 1 loan allowed");
         updateBorrowState(nftAsset, nftTokenId);
         uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice(nftAsset,nftTokenId);
         require(amount <= nftPrice * collateralRate / 10000 , "Collateral not enough");
@@ -164,6 +168,7 @@ contract LendPool  is ILendPool, Ownable{
         LoanData memory loanData = LoanData(loanNonce, 0, onBehalfOf, nftAsset, nftTokenId, amount, block.timestamp);
         nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
         loanList[loanNonce] = loanData;
+        userLoan[onBehalfOf] = loanNonce;
         loanNonce++;
 
         IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
@@ -179,6 +184,31 @@ contract LendPool  is ILendPool, Ownable{
         loanList[loanId].lastUpdateTimestamp = block.timestamp;
     }
 
+    function repay(
+        address nftAsset,
+        uint256 nftTokenId,
+        uint256 loanId,
+        uint256 amount
+    ) public returns (uint256){
+        //TODO
+        require(loanId != 0, "Loan not exist");
+        require( loanList[loanId].state != 1, "Loan already repaid");
+
+        loanList[loanId].state = 1;
+        loanList[loanId].borrowedAmount = 0;
+
+        //transfer weth
+        IERC20Upgradeable(address(WETH)).transferFrom(
+            address(this),
+            msg.sender,
+            amount
+        );
+        
+        // transfer nft
+        IERC721Upgradeable(nftAsset).safeTransferFrom(address(this), loanList[loanId].borrower, nftTokenId);
+        userLoan[loanList[loanId].borrower] = 0;
+        return amount;
+    }
 
 
     /**
@@ -215,6 +245,13 @@ contract LendPool  is ILendPool, Ownable{
     function getCollateralLoanId(address nftAsset, uint256 nftId) view public returns(uint256){
         uint256 id = nftToLoanIds[nftAsset][nftId];
         return id;
+    }
+
+    function getUserLoan(address borrower) view public returns(uint256) {
+        return userLoan[borrower];
+    }
+    function getDebtAmount(uint256 loanId) public view returns(uint256){
+        return loanList[loanId].borrowedAmount;
     }
 
     function onERC721Received(

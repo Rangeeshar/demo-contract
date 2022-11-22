@@ -67,42 +67,28 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
 
     function repayETH(
         address nftAsset,
-        uint256 nftTokenId,
-        uint256 amount
-    ) external payable returns (uint256, bool){
-        (uint256 repayAmount, bool repayAll) = _repayETH(nftAsset, nftTokenId, amount);
+        uint256 nftTokenId
+    ) external payable returns (bool){
+        
+        uint256 loanId = LendPool.getUserLoan(msg.sender);
+        require(loanId > 0, "collateral loan id not exist");
+
+        address reserveAsset = address(WETH);
+
+        LendPool.updateBorrowState(nftAsset, nftTokenId);
+        uint256 borrowedAmount = LendPool.getDebtAmount(loanId);
+
+        require(msg.value >= borrowedAmount,"msg.value is less than repay amount");
+
+
+        WETH.deposit{value: borrowedAmount}();
+
+        uint256 repayAmount = LendPool.repay(nftAsset, nftTokenId,loanId, borrowedAmount);
 
         // refund remaining dust eth
         if (msg.value > repayAmount) {
-        _safeTransferETH(msg.sender, msg.value - repayAmount);
+            _safeTransferETH(msg.sender, msg.value - repayAmount);
         }
-
-        return (repayAmount, repayAll);
-    }
-
-    function _repayETH(
-        address nftAsset,
-        uint256 nftTokenId,
-        uint256 amount
-    ) internal returns (uint256, bool) {
-
-        // uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
-        // require(loanId > 0, "collateral loan id not exist");
-
-        // address reserveAsset = address(WETH);
-        // uint256 repayDebtAmount = LendPool.getDebtAmount(loanId);
-
-        // if(amount < repayDebtAmount){
-        //     repayDebtAmount = amount;
-        // }
-
-        // require(msg.value >= repayDebtAmount,"msg.value is less than repay amount");
-
-        // WETH.deposit{value: repayDebtAmount}();
-        // // burn: burnt amount of the loan
-        // (uint256 paybackAmount, bool burn) = LendPool.repay(nftAsset, nftTokenId, amount);
-
-        // return (paybackAmount, burn);
     }
 
     /**

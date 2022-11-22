@@ -39,6 +39,7 @@ describe("Lend Protocol", function () {
     // nft approval
     await mockNFT.setApprovalForAll(wethGateway.address, true);
     await mockNFTB.setApprovalForAll(wethGateway.address, true);
+    await wethGateway.approveNFT(mockNFT.address, lendPool.address);
     await wethGateway.approveNFT(mockNFTB.address, lendPool.address);
     // approve wethGateway to transfer  
     await lendPool.approveWETHGateway(weth.address, wethGateway.address);
@@ -229,11 +230,12 @@ describe("Lend Protocol", function () {
 
     })
 
-    it("Borrow ", async function() {
+    it("Borrow and repay", async function() {
 
       await lendPool.deployed();
       const [owner, addr1, addr2] = await ethers.getSigners();
 
+      
       // set mock nft rate as 10%
       await lendPool.setNftAssetRate(mockNFT.address, 1000);
       // deposit ethers to the pool
@@ -255,6 +257,7 @@ describe("Lend Protocol", function () {
       expect(nftOwner2).to.equal(addr1.address);
 
       // approve
+      await mockNFT.setApprovalForAll(wethGateway.address, true);
       await mockNFT.connect(addr1).setApprovalForAll(wethGateway.address, true);
 
       // borrow 0.25 ether
@@ -270,12 +273,30 @@ describe("Lend Protocol", function () {
       expect(loanData2.borrowedAmount).to.equal(oneEther.div(4));
       // check left weth in the pool
 
+      var loanIdForBorrower = await lendPool.getUserLoan(owner.address);
+      const debtAmount = await lendPool.getDebtAmount(loanIdForBorrower);
+
+      // Repay
+      await wethGateway.repayETH(mockNFT.address, 0, {value: debtAmount});
+      
+      const loanDataForBorrower = await lendPool.loanList(loanIdForBorrower);
+      expect(loanDataForBorrower.borrowedAmount).to.equal(0);
+      expect(loanDataForBorrower.state).to.equal(1);
+
+      loanIdForBorrower = await lendPool.getUserLoan(owner.address);
+      expect(loanIdForBorrower).to.equal(0);
     })
+
+
 
     it("Multi Borrow Interest Rates", async function() {
 
       await lendPool.deployed();
       const [owner, addr1, addr2] = await ethers.getSigners();
+
+      // approve
+      await mockNFT.connect(addr1).setApprovalForAll(wethGateway.address, true);
+      await mockNFTB.connect(addr1).setApprovalForAll(wethGateway.address, true);
 
       // set mock nft rate as 10%
       await lendPool.setNftAssetRate(mockNFT.address, 1000);
@@ -288,16 +309,16 @@ describe("Lend Protocol", function () {
 
       // mint nft to the borrower
       await mockNFT.mint(owner.address);
-      await mockNFTB.mint(owner.address);
+      await mockNFTB.mint(addr1.address);
 
       const nftOwner = await mockNFT.ownerOf(0);
       const nftBOwner = await mockNFTB.ownerOf(0);
       expect(nftOwner).to.equal(owner.address);
-      expect(nftBOwner).to.equal(owner.address);
+      expect(nftBOwner).to.equal(addr1.address);
 
       // borrow 0.2 ether
       await wethGateway.borrowETH(oneEther.div(5), mockNFT.address, 0, owner.address);
-      await wethGateway.borrowETH(oneEther.div(5), mockNFTB.address, 0, owner.address);
+      await wethGateway.connect(addr1).borrowETH(oneEther.div(5), mockNFTB.address, 0, addr1.address);
       
       // after 1 year
       await ethers.provider.send("evm_increaseTime", [3600*24*365]);
