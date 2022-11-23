@@ -1,5 +1,6 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+require("hardhat-gas-reporter");
 
 require('dotenv').config();
 
@@ -15,6 +16,9 @@ const config: HardhatUserConfig = {
       chainId: 5,
       accounts: [`${pk}`]
     }
+  },
+  gasReporter: {
+    enabled: true
   }
 };
 
