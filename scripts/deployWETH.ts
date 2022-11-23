@@ -3,18 +3,15 @@ import { ethers } from "hardhat";
 async function main() {
   const [deployer] = await ethers.getSigners();
   
-  var mockOracle: any;
+
   var weth: any;
-  var mockNFT: any;
-  var lendPool: any;
-  var wethGateway: any;
-  var mockNFTB: any;
 
-  const MockOracle = await ethers.getContractFactory("MockOracle");
-  mockOracle = await MockOracle.deploy();
 
-  mockOracle.deployed();
-  console.log(mockOracle.address);
+  const WETH = await ethers.getContractFactory("WETHMocked");
+  weth = await WETH.deploy();;
+
+  weth.deployed();
+  console.log(weth.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

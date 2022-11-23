@@ -28,7 +28,7 @@ describe("Lend Protocol", function () {
     mockNFT = await MockNFT.deploy();
 
     const MockNFTB = await ethers.getContractFactory("MockNFTB");
-    mockNFTB = await MockNFT.deploy();
+    mockNFTB = await MockNFTB.deploy();
 
     const LendPool = await ethers.getContractFactory("LendPool");
     lendPool = await LendPool.deploy(mockOracle.address, weth.address);
@@ -338,14 +338,6 @@ describe("Lend Protocol", function () {
       expect(loanBData.borrowedAmount).to.equal(oneEther.div(5).mul(12).div(10));
 
     })
-
-
-
-    
-
-
-
-
   })
 
 });
