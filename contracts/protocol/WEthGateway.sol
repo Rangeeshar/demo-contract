@@ -12,31 +12,38 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
     IWETH internal WETH;
     ILendPool internal LendPool;
 
-    constructor(address weth, address lendPool, address nftAsset) {
+    constructor(address _weth, address lendPool, address nftAsset) {
         
-        WETH = IWETH(weth);
+        WETH = IWETH(_weth);
         LendPool = ILendPool(lendPool);
         WETH.approve(lendPool, type(uint256).max);
         IERC721Upgradeable(nftAsset).setApprovalForAll(lendPool,true);
 
     }
 
-    function depositETH(address onBehalfOf) external payable override {
+    function depositETH(address onBehalfOf, uint8 depositPeriod) external payable override {
         
         WETH.deposit{value: msg.value}();
-        LendPool.deposit(address(WETH), msg.value, onBehalfOf);
+        LendPool.deposit(address(WETH), msg.value,depositPeriod ,onBehalfOf);
     }
 
-    function withdrawETH(uint256 amount, address to) external {
+    function withdrawETH(uint256 amount, address to, uint8 depositPeriod) external {
         
-        uint256 userBalance = LendPool.getDepositBalance(msg.sender);
+        // uint256 userBalance = LendPool.getDepositBalance(msg.sender);
         uint256 amountToWithdraw = amount;
 
-        if(amount == type(uint256).max){
-            amountToWithdraw  = userBalance;
+        // if(amount == type(uint256).max){
+        //     amountToWithdraw  = userBalance;
+        // }
+
+        if(depositPeriod == 0){
+            LendPool.vWithdraw(address(WETH), amountToWithdraw, address(this),to); 
         }
 
-        LendPool.withdraw(address(WETH), amountToWithdraw, address(this),to); 
+        if(depositPeriod == 1){
+            LendPool.fWithdraw(address(WETH), amountToWithdraw, address(this),to); 
+        }
+        
         WETH.withdraw(amountToWithdraw);
         _safeTransferETH(to,amountToWithdraw);
     }
@@ -60,42 +67,28 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
 
     function repayETH(
         address nftAsset,
-        uint256 nftTokenId,
-        uint256 amount
-    ) external payable returns (uint256, bool){
-        (uint256 repayAmount, bool repayAll) = _repayETH(nftAsset, nftTokenId, amount);
-
-        // refund remaining dust eth
-        if (msg.value > repayAmount) {
-        _safeTransferETH(msg.sender, msg.value - repayAmount);
-        }
-
-        return (repayAmount, repayAll);
-    }
-
-    function _repayETH(
-        address nftAsset,
-        uint256 nftTokenId,
-        uint256 amount
-    ) internal returns (uint256, bool) {
-
-        uint256 loanId = LendPool.getCollateralLoanId(nftAsset, nftTokenId);
+        uint256 nftTokenId
+    ) external payable returns (bool){
+        
+        uint256 loanId = LendPool.getUserLoan(msg.sender);
         require(loanId > 0, "collateral loan id not exist");
 
         address reserveAsset = address(WETH);
-        uint256 repayDebtAmount = LendPool.getDebtAmount(loanId);
 
-        if(amount < repayDebtAmount){
-            repayDebtAmount = amount;
+        LendPool.updateBorrowState(nftAsset, nftTokenId);
+        uint256 borrowedAmount = LendPool.getDebtAmount(loanId);
+
+        require(msg.value >= borrowedAmount,"msg.value is less than repay amount");
+
+
+        WETH.deposit{value: borrowedAmount}();
+
+        uint256 repayAmount = LendPool.repay(nftAsset, nftTokenId,loanId, borrowedAmount);
+
+        // refund remaining dust eth
+        if (msg.value > repayAmount) {
+            _safeTransferETH(msg.sender, msg.value - repayAmount);
         }
-
-        require(msg.value >= repayDebtAmount,"msg.value is less than repay amount");
-
-        WETH.deposit{value: repayDebtAmount}();
-        // burn: burnt amount of the loan
-        (uint256 paybackAmount, bool burn) = LendPool.repay(nftAsset, nftTokenId, amount);
-
-        return (paybackAmount, burn);
     }
 
     /**
@@ -106,6 +99,10 @@ contract WETHGateway is IWETHGateway, ERC721HolderUpgradeable {
     function _safeTransferETH(address to, uint256 value) internal {
         (bool success, ) = to.call{value: value}(new bytes(0));
         require(success, "ETH_TRANSFER_FAILED");
+    }
+
+    function approveNFT(address nftAsset, address operator) public {
+        IERC721Upgradeable(nftAsset).setApprovalForAll(operator,true);
     }
 
     receive() external payable {

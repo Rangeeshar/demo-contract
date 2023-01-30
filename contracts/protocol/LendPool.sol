@@ -1,185 +1,215 @@
 // SPDX-License-Identifier: agpl-3.0
 pragma solidity 0.8.17;
 
+import "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
 import {IERC20Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
 import {IERC721ReceiverUpgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721ReceiverUpgradeable.sol";
 import {ILendPool} from "../interfaces/ILendPool.sol";
 import {IMockOracle} from "../interfaces/IMockOracle.sol";
 import {IWETH} from "../interfaces/IWETH.sol";
-contract LendPool is ILendPool{
+contract LendPool  is ILendPool, Ownable{
 
     uint256 internal constant SECONDS_PER_YEAR = 365 days;
+    uint256 internal constant THREE_MONTH = 90 days;
 
-    mapping(address => uint256) public scaledDepositList;
-    mapping(address => uint256) public scaledBorrowList;
-    
+    // deposit part
+    mapping(address => DepositData) public variableDepositBalanceList;
+    mapping(address => DepositData) public threeMonthDepositBalanceList;
+
+    // borrow part
+    uint256 loanNonce = 1;
     // nftAsset + nftTokenId => loanId
     mapping(address => mapping(uint256 => uint256)) private nftToLoanIds;
-    mapping(address => NFTData) public nftDataList;
-    mapping(uint256 => LoanData) loanDataList;
-    uint256 loanNonce;
-    uint32 collateralRate;
+    // ID -> Loan Data
+    mapping(uint256 => LoanData) public loanList;
+    // user address -> loan id (0 -> no loan)
+    mapping(address => uint256) public userLoan;
+    // 0.01% = 1
+    mapping(address => uint256) public borrowRateList;
+     
+
+    // Rates
+    //0.01% = 1
+    uint256 public vLiquidityRate = 500;
+    uint256 public threeLiquidityRate = 1000;
+    // uint256 public borrowRateA = 500;
+    // uint256 public borrowRateB = 1000;
+
+    uint256 collateralRate = 3000;
     address oracleAddr;
-
-
-    ReserveData public reserveData;
 
     IWETH internal WETH;
 
-    enum LoanState {
-        Created,
-        Active,
-        Repaid
+    //0 -> v, 1 -> three
+    enum DepositPeriod {
+        variable,
+        threeMonth
     }
 
-    struct ReserveData {
-        uint256 liquidityIndex;
-        uint256 borrowIndex;
-        uint256 scaledLiquidityAmount;
-        uint256 scaledBorrowedAmount;
-        uint256 currentLiquidityRate;
-        uint256 currentBorrowRate;
+    struct DepositData {
+        DepositPeriod depositPeriod;
+        uint256 balance;
         uint256 lastUpdateTimestamp;
     }
 
     struct LoanData {
         uint256 loanId;
-        LoanState state;
+        //0 -> Active, 1 -> Repaid
+        uint256 state;
         address borrower;
         address nftAsset;
         uint256 nftTokenId;
-        address reserveAsset;
         uint256 borrowedAmount;
+        // 0 -> A, 1 -> B
+        // uint8 assetClass;
+        uint256 lastUpdateTimestamp;
     }
 
-    struct NFTData {
-        address nftAddress;
-        uint8 id;
-        uint256 maxSupply;
-        uint256 maxTokenId;
+    constructor(address _oracle, address _weth) {
+        oracleAddr = _oracle;
+        WETH = IWETH(_weth);
     }
 
-    constructor(uint256 borrowRate, address _oracleAddr ) {
-        // reserveData = ReserveData();
-        reserveData = ReserveData({
-            liquidityIndex:100000000,
-            borrowIndex:100000000,
-            scaledLiquidityAmount: 0,
-            scaledBorrowedAmount: 0,
-            currentLiquidityRate: 0,
-            currentBorrowRate:borrowRate,
-            lastUpdateTimestamp:block.timestamp
-        });
-        // reserveData.liquidityIndex = 100000000;
-        // reserveData.borrowIndex = 100000000;
-        // reserveData.currentBorrowRate = borrowRate;
-        // reserveData.lastUpdateTimestamp = block.timestamp;
-        //1 = 0.01%
-        collateralRate = 5000;
-        oracleAddr = _oracleAddr;
-    }
-
-
-    /**
-     * @dev deposit underlying asset into the reserve
-     */
+    //0 -> v, 1 -> three
     function deposit(
         address asset,
         uint256 amount,
+        uint8 depositPeriod,
         address onBehalfOf
-    ) external  override {
+    ) public override {
 
-        updateState(reserveData);
-        //transfer WETH
+        require(amount > 0, "Fund not enough");
+
+        // Transfer WETH to the pool
         IERC20Upgradeable(asset).transferFrom(msg.sender,address(this),amount);
-        //update balances
-        scaledDepositList[onBehalfOf] += amount * reserveData.liquidityIndex / 100000000;
+
+        if( depositPeriod == 0){
+            variableDepositBalanceList[onBehalfOf].depositPeriod = DepositPeriod.variable;
+            variableDepositBalanceList[onBehalfOf].balance += amount;
+            variableDepositBalanceList[onBehalfOf].lastUpdateTimestamp = block.timestamp;
+
+        }
+
+        if( depositPeriod == 1){
+            threeMonthDepositBalanceList[onBehalfOf].depositPeriod = DepositPeriod.threeMonth;
+            threeMonthDepositBalanceList[onBehalfOf].balance += amount;
+            threeMonthDepositBalanceList[onBehalfOf].lastUpdateTimestamp = block.timestamp;
+        }
+
     }
 
-    function withdraw(
+    function vWithdraw(
         address asset,
         uint256 amount,
         address initiator,
         address to
-    ) public returns (uint256){
-        
-        uint256 liquidityIndex = reserveData.liquidityIndex;
+    ) public override {
         require(amount != 0, "Amount must be greater than 0");
-        require(amount <= scaledDepositList[to] * liquidityIndex / 100000000, "Balance not enough");
 
-        updateState(reserveData);
-        //transfer WETH to WETHGateway
+        updateDepositState(0, to);
+        uint256 userBalance = variableDepositBalanceList[to].balance;
+
+        require(amount <= userBalance, "Balance not enough");
+        // decrease balance
+        variableDepositBalanceList[to].balance = userBalance - amount;
         IERC20Upgradeable(asset).transferFrom(address(this),initiator, amount);
-        //update balances
-        scaledDepositList[to] -=  amount * 100000000 / liquidityIndex;
-        return amount;
+    }
+
+    function fWithdraw(
+        address asset,
+        uint256 amount,
+        address initiator,
+        address to
+    ) public override {
+        uint256 depositedPeriod = block.timestamp - threeMonthDepositBalanceList[to].lastUpdateTimestamp;
+        require(depositedPeriod >= THREE_MONTH, " Fund Locked");
+
+        updateDepositState(1, to);
+        uint256 userBalance = threeMonthDepositBalanceList[to].balance;
+
+        require(amount != 0, "Amount must be greater than 0");
+        require(amount <= userBalance, "Balance not enough");
+        threeMonthDepositBalanceList[to].balance = userBalance - amount;
+        IERC20Upgradeable(asset).transferFrom(address(this),initiator, amount);
+
+    }
+
+    function updateDepositState(uint8 depositPeriod, address onBehalfOf) public {
+        
+        if(depositPeriod == 0){
+            uint256 accruedInterest = calculateLinearInterest(vLiquidityRate,variableDepositBalanceList[onBehalfOf].lastUpdateTimestamp);
+            uint256 currentBalance = variableDepositBalanceList[onBehalfOf].balance * (10000 + accruedInterest) / 10000;
+            variableDepositBalanceList[onBehalfOf].balance = currentBalance;
+            variableDepositBalanceList[onBehalfOf].lastUpdateTimestamp = block.timestamp;
+        }
+
+        if(depositPeriod == 1){
+            uint256 accruedInterest = calculateLinearInterest(threeLiquidityRate,threeMonthDepositBalanceList[onBehalfOf].lastUpdateTimestamp);
+            uint256 currentBalance = threeMonthDepositBalanceList[onBehalfOf].balance * (10000 + accruedInterest) / 10000;
+            threeMonthDepositBalanceList[onBehalfOf].balance = currentBalance;
+            threeMonthDepositBalanceList[onBehalfOf].lastUpdateTimestamp = block.timestamp;
+        }
     }
 
     function borrow(
-        address reserveAsset,
+        address reserveAssert,
         uint256 amount,
         address nftAsset,
         uint256 nftTokenId,
         address onBehalfOf
-    ) public{
-        
+    ) public {
         require(onBehalfOf != address(0), "Invalid OnBehalfof");
-        NFTData storage nftData = nftDataList[nftAsset];
-        updateState(reserveData);
-
-        //convert asset amount to ETH
+        require(userLoan[onBehalfOf] == 0, "Only 1 loan allowed");
+        updateBorrowState(nftAsset, nftTokenId);
         uint256 nftPrice = IMockOracle(oracleAddr).getNFTPrice(nftAsset,nftTokenId);
-        //validate
         require(amount <= nftPrice * collateralRate / 10000 , "Collateral not enough");
-        //transfer NFT
+
+        LoanData memory loanData = LoanData(loanNonce, 0, onBehalfOf, nftAsset, nftTokenId, amount, block.timestamp);
+        nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
+        loanList[loanNonce] = loanData;
+        userLoan[onBehalfOf] = loanNonce;
+        loanNonce++;
+
         IERC721Upgradeable(nftAsset).safeTransferFrom(msg.sender, address(this), nftTokenId);
-        createLoan( onBehalfOf, nftAsset, nftTokenId, reserveAsset, amount);
+        IERC20Upgradeable(address(WETH)).transferFrom(address(this),msg.sender, amount);
+    }
+
+    function updateBorrowState(address nftAsset, uint256 nftTokenId) public {
+        uint256 loanId = nftToLoanIds[nftAsset][nftTokenId];
+        LoanData memory loanData = loanList[loanId];
+        uint256 accruedInterest = calculateLinearInterest(borrowRateList[nftAsset],loanList[loanId].lastUpdateTimestamp);
+        uint256 currentDebt = loanList[loanId].borrowedAmount * ( 10000 + accruedInterest) / 10000;
+        loanList[loanId].borrowedAmount = currentDebt;
+        loanList[loanId].lastUpdateTimestamp = block.timestamp;
     }
 
     function repay(
         address nftAsset,
         uint256 nftTokenId,
-        uint256 amount
-    ) public returns (uint256, bool){
-        //TODO
-    }
-
-    function createLoan(
-        address onBehalfOf,
-        address nftAsset,
-        uint256 nftTokenId,
-        address reserveAsset,
+        uint256 loanId,
         uint256 amount
     ) public returns (uint256){
-        uint borrowIndex = reserveData.borrowIndex;
-        uint256 scaledBorrowAmount = amount * 100000000 / (borrowIndex + 1);
-        LoanData memory ld = LoanData(loanNonce,LoanState.Active,onBehalfOf,nftAsset,nftTokenId, reserveAsset, scaledBorrowAmount);
-        nftToLoanIds[nftAsset][nftTokenId] = loanNonce;
-        loanDataList[loanNonce] = ld;
-        loanNonce++;
-    }
+        //TODO
+        require(loanId != 0, "Loan not exist");
+        require( loanList[loanId].state != 1, "Loan already repaid");
 
-    /** 
-     * @dev Update reserve state: liquidity index and borrow index
-     */
-    function updateState(ReserveData storage reserve) internal {
+        loanList[loanId].state = 1;
+        loanList[loanId].borrowedAmount = 0;
 
-        //update liquidity index
-        uint256 currentLiquidityRate = reserve.currentLiquidityRate;
-        uint256 newLiquidityIndex = reserve.liquidityIndex;
-        uint256 cumulatedLiquidityInterestRate = calculateLinearInterest(currentLiquidityRate, reserve.lastUpdateTimestamp);
+        //transfer weth
+        IERC20Upgradeable(address(WETH)).transferFrom(
+            address(this),
+            msg.sender,
+            amount
+        );
         
-        newLiquidityIndex =  reserve.currentLiquidityRate * (cumulatedLiquidityInterestRate + 1);
-        reserve.currentLiquidityRate = newLiquidityIndex;
-
-        //update liquidity index
-        uint256 currentBorrowRate = reserve.currentBorrowRate;
-        uint256 newBorrowIndex = reserve.borrowIndex;
-        uint256 cumulatedVariableBorrowInterest = calculateLinearInterest(currentBorrowRate, reserve.lastUpdateTimestamp);
-        newBorrowIndex = reserve.currentLiquidityRate * (cumulatedVariableBorrowInterest + 1);
-        reserve.borrowIndex = newBorrowIndex;
+        // transfer nft
+        IERC721Upgradeable(nftAsset).safeTransferFrom(address(this), loanList[loanId].borrower, nftTokenId);
+        userLoan[loanList[loanId].borrower] = 0;
+        return amount;
     }
+
 
     /**
      * @return accrued interest ratio
@@ -196,18 +226,33 @@ contract LendPool is ILendPool{
 
 
 
-    function getDepositBalance(address addr) public view returns(uint256){
-        return scaledDepositList[addr];
+    // 0 -> Variable, 1 -> three month
+    function getDepositData(address depositor, uint8 depositPeriod) public view returns(DepositData memory){
+        
+        if(depositPeriod == 0){
+            return variableDepositBalanceList[depositor];
+        }
+        if(depositPeriod == 1){
+            return threeMonthDepositBalanceList[depositor];
+        }
     }
 
+    // 0 -> A, 1 -> B
+    function setNftAssetRate(address nftAsset, uint256 rate) public onlyOwner {
+        borrowRateList[nftAsset] = rate;
+    }
+
+    function getCollateralLoanId(address nftAsset, uint256 nftId) view public returns(uint256){
+        uint256 id = nftToLoanIds[nftAsset][nftId];
+        return id;
+    }
+
+    function getUserLoan(address borrower) view public returns(uint256) {
+        return userLoan[borrower];
+    }
     function getDebtAmount(uint256 loanId) public view returns(uint256){
-        return loanDataList[loanId].borrowedAmount;
+        return loanList[loanId].borrowedAmount;
     }
-
-    function getCollateralLoanId(address nftAsset, uint256 nftTokenId) public view returns(uint256){
-        return nftToLoanIds[nftAsset] [nftTokenId];
-    }
-
 
     function onERC721Received(
         address operator,
@@ -226,5 +271,6 @@ contract LendPool is ILendPool{
         WETH = IWETH(wethAddr);
         WETH.approve(wethGatewayAddr, type(uint256).max);
     }
+
 
 }
